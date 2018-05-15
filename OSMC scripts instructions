@@ -1,0 +1,137 @@
+##################
+## based on script by Rern, updated to work w/OSMC and NESPI Case+ by seamonkey420
+## https://seamonkey420x.blogspot.com/2018/04/osmc-and-new-nespi-case-with-safe.html
+## verified on 4/27/18 w/current OSMC build w/retropie added via script
+## finally, i use putty to SSH into my pi box vs doing via terminal on pi and hdtv, easier this way ;)
+##################
+
+#1. Install RPi.GPIO. Open up Putty and run these commands:
+sudo su
+apt-get update
+apt-get install python-pip python-dev gcc
+apt-get install python-setuptools
+pip install rpi.gpio
+
+#1a. Enable root to make things easier, you can disable afterwards, type and then enter a root password:
+sudo passwd
+
+#2. In Putty, create a python script for push button shutdown:
+nano /home/osmc/shutdown.py
+
+#2a. Add to the file the following (copy all up until #2b). Once done hold CTRL+X to save, Y and enter:
+
+#!/usr/bin/python
+import RPi.GPIO as GPIO
+import os
+
+# hide warning
+GPIO.setwarnings(0)
+
+# connect RPi numbered pin
+button = 5
+
+# hide warning
+GPIO.setwarnings(0)
+
+# pins setup
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# wait for button press
+print('Wait for button press...')
+GPIO.wait_for_edge(button, GPIO.FALLING)
+
+# activate system command
+# Updated to make true safe shutdown w/emustation (incase OSMC has been added)
+os.system('sudo killall emulationstation & sleep 5s & sudo shutdown -h now')
+
+#2b. In putty, type this command to change permission:
+chmod +x /home/osmc/shutdown.py
+
+#3. In putty, type this command to create a systemd service file:
+nano /lib/systemd/system/shutdown.service
+
+#3a. Now add to the service file the below. Once done hold CTRL+X to save, Y and enter:
+[Unit]
+Description = GPIO shutdown button
+[Service]
+Type = idle
+ExecStart = /home/osmc/shutdown.py
+[Install]
+WantedBy = multi-user.target
+
+#4. In putty, type this command to enable auto startup:
+systemctl enable shutdown
+
+
+#Connect a push button to RPi GPIO pin #56
+#Start the service without reboot:
+systemctl start shutdown
+
+#5a FINALLY, to enable the power on LED, we need to add a line to the /boot/config.txt file to enable the serial port
+#This case uses the UART port for the led.
+sudo nano /boot/config.txt
+
+#5b, add this line of text to the end of config.txt and then CTRL+X and Y and enter:
+enable_uart=1
+
+
+##Press the power button to shutdown OSMC safely!
+##Be sure you have toggled the safe mode switch on the pcb to ON
+##Once you start up your Pi the LED will also be enabled! updated on 5/6/18
+
+#------------------------------------------------
+
+#You can make the reset button reboot OSMC by doing the following (basically same steps as above but different names and button):
+
+#1. Create a python script for push button shutdown:
+nano /home/osmc/reset.py
+
+#2a. Add to the file  (copy all up until #2b). Once done hold CTRL+X to save, Y and enter:
+#!/usr/bin/python
+import RPi.GPIO as GPIO
+import os
+
+# hide warning
+GPIO.setwarnings(0)
+
+# connect RPi numbered pin
+button = 3
+
+# hide warning
+GPIO.setwarnings(0)
+
+# pins setup
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(button, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# wait for button press
+print('Wait for button press...')
+GPIO.wait_for_edge(button, GPIO.FALLING)
+
+# activate system command
+# reboots OSMC
+os.system('sudo reboot')
+
+#2b. Change permission, type:
+chmod +x /home/osmc/reset.py
+
+#3. Create a systemd service file, type:
+nano /lib/systemd/system/resetbutton.service
+
+#3a. Add to the service file. Once done hold CTRL+X to save, Y and enter:
+[Unit]
+Description = GPIO reset button
+[Service]
+Type = idle
+ExecStart = /home/osmc/reset.py
+[Install]
+WantedBy = multi-user.target
+
+#4. Enable auto startup:
+systemctl enable resetbutton
+
+
+#Start the service without reboot:
+#reset button will now initial the sudo reboot command in our py script
+systemctl start resetbutton
